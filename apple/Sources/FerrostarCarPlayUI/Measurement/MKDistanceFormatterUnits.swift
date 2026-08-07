@@ -12,7 +12,7 @@ extension MKDistanceFormatter.Units {
     func getShortAndLong(for locale: Locale) -> (UnitLength, UnitLength) {
         switch self {
         case .default:
-            switch locale.measurementSystem {
+            switch locale.compatMeasurementSystem {
             case .us:
                 (.feet, .miles)
             case .uk:
@@ -36,7 +36,7 @@ extension MKDistanceFormatter.Units {
     func thresholdForLargeUnit(for locale: Locale) -> CLLocationDistance {
         switch self {
         case .default:
-            switch locale.measurementSystem {
+            switch locale.compatMeasurementSystem {
             case .us:
                 289
             case .uk:

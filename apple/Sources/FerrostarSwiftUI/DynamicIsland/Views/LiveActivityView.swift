@@ -29,12 +29,12 @@ struct LiveActivityView: View {
             Text(state.instruction.primaryContent.text)
                 .font(theme.instructionFont)
                 .foregroundStyle(theme.instructionColor)
-                .fontWeight(.bold)
+                .compatFontWeight(.bold)
 
             if let distance = distanceFormatter.string(for: state.distanceToNextManeuver) {
                 Text(verbatim: distance)
                     .font(.title2)
-                    .fontWeight(.bold)
+                    .compatFontWeight(.bold)
                     .padding(.horizontal, 12)
             }
         }

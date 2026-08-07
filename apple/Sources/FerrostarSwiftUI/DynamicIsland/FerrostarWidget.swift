@@ -35,7 +35,7 @@ public struct FerrostarWidget: Widget {
                     Text(context.state.instruction.primaryContent.text)
                         .font(theme.instructionFont)
                         .foregroundStyle(theme.instructionColor)
-                        .fontWeight(.bold)
+                        .compatFontWeight(.bold)
                 }
 
                 DynamicIslandExpandedRegion(.trailing, priority: 1) {
@@ -43,7 +43,7 @@ public struct FerrostarWidget: Widget {
                         if let distance = distanceFormatter.string(for: context.state.distanceToNextManeuver) {
                             Text(verbatim: distance)
                                 .font(.title2)
-                                .fontWeight(.bold)
+                                .compatFontWeight(.bold)
                                 .padding(.horizontal, 12)
                         }
                     }

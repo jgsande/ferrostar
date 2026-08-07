@@ -4,7 +4,7 @@ public struct CurrentRoadNameView: View {
     let currentRoadName: String?
     var theme: any RoadNameViewTheme = DefaultRoadNameViewTheme()
     var padding: EdgeInsets = .init(top: 6, leading: 12, bottom: 6, trailing: 12)
-    var shape: AnyShape = .init(RoundedRectangle(cornerRadius: 48))
+    var shape: ErasedShape = .init(RoundedRectangle(cornerRadius: 48))
     var borderWidth: CGFloat = 2
 
     public init(currentRoadName: String?) {
@@ -37,7 +37,7 @@ public extension CurrentRoadNameView {
     /// Sets the shape for clipping and border stroke.
     func shape(_ shape: some Shape) -> Self {
         var newSelf = self
-        newSelf.shape = AnyShape(shape)
+        newSelf.shape = ErasedShape(shape)
         return newSelf
     }
 

@@ -39,7 +39,20 @@ let package = Package(
     name: "FerrostarCore",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v16),
+        // FORK: iOS floor lowered from upstream's .v16. SPM treats a dependency's platform floor as
+        // a hard minimum on its consumers, so .v16 here makes the package unresolvable for an app
+        // that still ships an iOS 15 floor — even when every Ferrostar call site in that app is
+        // itself `@available(iOS 16, *)`-gated. The `FontWeightCompat` / `AnyShapeCompat` shims in
+        // FerrostarSwiftUI exist to make the sources actually compile at this floor.
+        .iOS(.v15),
+        // FORK: declare a macOS floor so a macOS root resolving this package doesn't default to
+        // macOS 10.13 and hit a floor conflict — the `FerrostarMapLibreUI` / `FerrostarCarPlayUI`
+        // targets depend on `MapLibreSwiftUI` (macOS 12). SPM requires a floor at or below the
+        // consumer's; .v14 also keeps the macOS link deployment target close enough to the toolchain
+        // runtime to avoid benign "building for macOS-12.0, linking 13.0 dylib" ld warnings. This is
+        // manifest-only where the products are iOS-conditioned downstream — no Ferrostar code and no
+        // Rust binary is built for macOS.
+        .macOS(.v14),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
