@@ -77,6 +77,16 @@ public struct NavigatingInnerGridView: View {
                 if showMute {
                     NavigationUIMuteButton(isMuted: isMuted, action: onMute)
                 }
+
+                // FORK ADDITION: render the host-supplied `topTrailing` slot. Upstream accepts
+                // it through `navigationViewInnerGrid` and forwards it down four layers, then never
+                // calls the accessor here — so the slot silently renders nothing. Guarded on the
+                // configured closure rather than calling `getTopTrailing()` unconditionally, because
+                // that accessor falls back to `Spacer()`, and an expanding Spacer inside this group
+                // would redistribute the trailing column for every host that leaves the slot unset.
+                if gridConfig.topTrailing != nil {
+                    gridConfig.getTopTrailing()
+                }
             },
             midLeading: { gridConfig.getMidLeading() },
             midCenter: {
