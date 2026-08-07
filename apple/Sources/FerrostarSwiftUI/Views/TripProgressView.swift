@@ -100,6 +100,10 @@ public struct TripProgressView: View {
                 .padding()
                 .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
+                // FORK PATCH: a stable identifier for the single end-navigation control, so a
+                // host app's UI tests can find and tap it while using this STOCK bottom bar.
+                .accessibilityIdentifier("nav.endButton")
+                .accessibilityLabel("End navigation")
             } else {
                 Rectangle()
                     .frame(width: 20, height: 10)
