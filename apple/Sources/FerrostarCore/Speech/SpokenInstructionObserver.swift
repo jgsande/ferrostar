@@ -14,17 +14,33 @@ public class SpokenInstructionObserver {
     private let audioManager = AudioSessionManager()
     private var audioFocusReleaseTask: Task<Void, Never>?
 
+    /// FORK ADDITION: when `false`, this observer performs NO `AVAudioSession` work at all —
+    /// no focus request before an utterance, no deferred release after one. The host then owns the
+    /// session outright and may hold it active for a whole navigation session.
+    ///
+    /// Why a host would want that: the default per-utterance activate/deactivate means the system has
+    /// no active playback session between announcements, so the hardware volume buttons fall back to
+    /// adjusting ringer volume. The rider can only change guidance volume during the few seconds an
+    /// announcement is actually playing.
+    ///
+    /// Defaults to `true`, so upstream behaviour is byte-identical unless a host opts out.
+    private let managesAudioSession: Bool
+
     /// Creates a spoken instruction observer with any ``SpeechSynthesizer``.
     ///
     /// - Parameters:
     ///   - synthesizer: The speech synthesizer.
     ///   - isMuted: Whether the speech synthesizer is currently muted. Assume false if unknown.
+    ///   - managesAudioSession: Whether this observer owns the `AVAudioSession` lifecycle. Pass `false`
+    /// to take ownership in the host (see the property docs above).
     public init(
         synthesizer: SpeechSynthesizer,
-        isMuted: Bool
+        isMuted: Bool,
+        managesAudioSession: Bool = true
     ) {
         self.synthesizer = synthesizer
         self.isMuted = isMuted
+        self.managesAudioSession = managesAudioSession
     }
 
     deinit {
@@ -38,8 +54,10 @@ public class SpokenInstructionObserver {
         }
 
         Task {
-            cancelAudioFocusRelease()
-            await audioManager.requestAudioFocus()
+            if managesAudioSession {
+                cancelAudioFocusRelease()
+                await audioManager.requestAudioFocus()
+            }
 
             let utterance: AVSpeechUtterance = if #available(iOS 16.0, *),
                                                   let ssml = instruction.ssml,
@@ -69,11 +87,14 @@ public class SpokenInstructionObserver {
     public func stopAndClearQueue() {
         Task {
             synthesizer.stopSpeaking(at: .immediate)
-            await audioManager.releaseAudioFocus()
+            if managesAudioSession {
+                await audioManager.releaseAudioFocus()
+            }
         }
     }
 
     func scheduleAudioFocusRelease() {
+        guard managesAudioSession else { return }
         cancelAudioFocusRelease()
 
         audioFocusReleaseTask = Task { [weak self] in

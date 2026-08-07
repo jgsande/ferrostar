@@ -28,6 +28,16 @@ public struct DynamicallyOrientingNavigationView: View {
     let onTapMute: () -> Void
     var onTapExit: (() -> Void)?
 
+    /// FORK ADDITION: when `false`, the map zoom +/- controls are suppressed even while navigating.
+    /// Defaults to `true` to preserve upstream behaviour.
+    let showZoomControls: Bool
+
+    /// FORK ADDITION: when `false`, the stock two-state mute button is suppressed even while
+    /// navigating. Defaults to `true` to preserve upstream behaviour. A host that renders its own
+    /// multi-level voice control into the `topTrailing` grid slot passes `false`, so the two do not
+    /// ship side by side as two controls for one concept.
+    let showMuteButton: Bool
+
     public var minimumSafeAreaInsets: EdgeInsets
 
     /// Create a dynamically orienting navigation view. This view automatically arranges child views for both portrait
@@ -54,6 +64,8 @@ public struct DynamicallyOrientingNavigationView: View {
         minimumSafeAreaInsets: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
         onTapMute: @escaping () -> Void,
         onTapExit: (() -> Void)? = nil,
+        showZoomControls: Bool = true,
+        showMuteButton: Bool = true,
         @MapViewContentBuilder makeMapContent: () -> [StyleLayerDefinition] = { [] }
     ) {
         self.styleURL = styleURL
@@ -63,6 +75,8 @@ public struct DynamicallyOrientingNavigationView: View {
         self.minimumSafeAreaInsets = minimumSafeAreaInsets
         self.onTapMute = onTapMute
         self.onTapExit = onTapExit
+        self.showZoomControls = showZoomControls
+        self.showMuteButton = showMuteButton
 
         userLayers = makeMapContent()
 
@@ -96,9 +110,9 @@ public struct DynamicallyOrientingNavigationView: View {
                         speedLimit: speedLimitConfig.speedLimit,
                         speedLimitStyle: speedLimitConfig.speedLimitStyle,
                         isMuted: isMuted,
-                        showMute: navigationState?.isNavigating == true,
+                        showMute: showMuteButton && navigationState?.isNavigating == true,
                         onMute: onTapMute,
-                        showZoom: isNavigating,
+                        showZoom: isNavigating && showZoomControls,
                         onZoomIn: { camera.incrementZoom(by: 1) },
                         onZoomOut: { camera.incrementZoom(by: -1) },
                         cameraControlState: cameraControlState,
@@ -121,9 +135,9 @@ public struct DynamicallyOrientingNavigationView: View {
                         speedLimit: speedLimitConfig.speedLimit,
                         speedLimitStyle: speedLimitConfig.speedLimitStyle,
                         isMuted: isMuted,
-                        showMute: navigationState?.isNavigating == true,
+                        showMute: showMuteButton && navigationState?.isNavigating == true,
                         onMute: onTapMute,
-                        showZoom: isNavigating,
+                        showZoom: isNavigating && showZoomControls,
                         onZoomIn: { camera.incrementZoom(by: 1) },
                         onZoomOut: { camera.incrementZoom(by: -1) },
                         cameraControlState: cameraControlState,
