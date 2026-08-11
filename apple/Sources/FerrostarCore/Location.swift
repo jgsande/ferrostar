@@ -30,6 +30,29 @@ public class CoreLocationProvider: NSObject {
         set { locationManager.activityType = newValue }
     }
 
+    /// Whether CoreLocation may pause location updates on its own when it decides the user has
+    /// stopped moving.
+    ///
+    /// Exposed because the inner `CLLocationManager` is private and the default is `true`, which is
+    /// the wrong answer for turn-by-turn: combined with `.automotiveNavigation` it is the most
+    /// pause-eager configuration CoreLocation offers, and the heuristic it runs is literally "the
+    /// vehicle appears parked". A rider stopped at a fuel pump for ten minutes is exactly that — and
+    /// once updates pause, the app loses the background-execution runway its `location` background
+    /// mode was keeping alive.
+    ///
+    /// Set it `false` for any real navigation session. See `[[interrupted-ride-resume]]` (H2).
+    public var pausesLocationUpdatesAutomatically: Bool {
+        get { locationManager.pausesLocationUpdatesAutomatically }
+        set { locationManager.pausesLocationUpdatesAutomatically = newValue }
+    }
+
+    /// Called with `true` when CoreLocation pauses updates on its own and `false` when it resumes.
+    ///
+    /// A closure rather than a widened `LocationManagingDelegate`: this is a diagnostic signal for
+    /// the host app, not part of the location contract every consumer of this provider has to
+    /// implement, and keeping it off the protocol keeps the fork's delta minimal.
+    public var onAutomaticPauseChange: ((Bool) -> Void)?
+
     /// Creates a location provider backed by an internal `CLLocationManager`
     /// using the stated activity type.
     ///
@@ -96,6 +119,20 @@ extension CoreLocationProvider: CLLocationManagerDelegate {
 
     public func locationManager(_: CLLocationManager, didFailWithError error: Error) {
         delegate?.locationManager(self, didFailWithError: error)
+    }
+
+    /// CoreLocation decided the user has stopped moving and paused the stream on its own.
+    ///
+    /// Implemented purely so the event is OBSERVABLE. Without these two callbacks an automatic
+    /// pause is completely silent: the fix stream simply stops, which is indistinguishable from a
+    /// tunnel, a bad sky view, or a dead battery — and telling those apart is the whole question
+    /// behind a nav session that went quiet during a fuel stop.
+    public func locationManagerDidPauseLocationUpdates(_: CLLocationManager) {
+        onAutomaticPauseChange?(true)
+    }
+
+    public func locationManagerDidResumeLocationUpdates(_: CLLocationManager) {
+        onAutomaticPauseChange?(false)
     }
 
     public func locationManagerDidChangeAuthorization(_: CLLocationManager) {
