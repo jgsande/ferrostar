@@ -88,6 +88,8 @@ public class CoreLocationProvider: NSObject {
     @Published public private(set) var lastLocation: UserLocation?
 
     @Published public private(set) var lastHeading: Heading?
+
+    @Published public private(set) var lastRawCLLocation: CLLocation?
 }
 
 extension CoreLocationProvider: LocationProviding {
@@ -105,6 +107,7 @@ extension CoreLocationProvider: LocationProviding {
 extension CoreLocationProvider: CLLocationManagerDelegate {
     public func locationManager(_: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         lastLocation = locations.last?.userLocation
+        lastRawCLLocation = locations.last
         delegate?.locationManager(self, didUpdateLocations: locations.map(\.userLocation))
     }
 
