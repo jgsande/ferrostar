@@ -26,6 +26,10 @@ public class SpokenInstructionObserver {
     /// Defaults to `true`, so upstream behaviour is byte-identical unless a host opts out.
     private let managesAudioSession: Bool
 
+    /// When `true`, an instruction's plain `text` is spoken in preference to its `ssml`, so the
+    /// utterance carries the host's prosody settings. Defaults to `false`.
+    private let prefersPlainText: Bool
+
     /// Creates a spoken instruction observer with any ``SpeechSynthesizer``.
     ///
     /// - Parameters:
@@ -33,14 +37,17 @@ public class SpokenInstructionObserver {
     ///   - isMuted: Whether the speech synthesizer is currently muted. Assume false if unknown.
     ///   - managesAudioSession: Whether this observer owns the `AVAudioSession` lifecycle. Pass `false`
     /// to take ownership in the host (see the property docs above).
+    ///   - prefersPlainText: Whether to speak an instruction's plain text in preference to its SSML.
     public init(
         synthesizer: SpeechSynthesizer,
         isMuted: Bool,
-        managesAudioSession: Bool = true
+        managesAudioSession: Bool = true,
+        prefersPlainText: Bool = false
     ) {
         self.synthesizer = synthesizer
         self.isMuted = isMuted
         self.managesAudioSession = managesAudioSession
+        self.prefersPlainText = prefersPlainText
     }
 
     deinit {
@@ -59,7 +66,8 @@ public class SpokenInstructionObserver {
                 await audioManager.requestAudioFocus()
             }
 
-            let utterance: AVSpeechUtterance = if #available(iOS 16.0, *),
+            let utterance: AVSpeechUtterance = if !prefersPlainText,
+                                                  #available(iOS 16.0, *),
                                                   let ssml = instruction.ssml,
                                                   let ssmlUtterance = AVSpeechUtterance(ssmlRepresentation: ssml)
             {
