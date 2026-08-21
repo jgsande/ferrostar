@@ -103,7 +103,12 @@ public struct TripProgressView: View {
                 // FORK PATCH: a stable identifier for the single end-navigation control, so a
                 // host app's UI tests can find and tap it while using this STOCK bottom bar.
                 .accessibilityIdentifier("nav.endButton")
-                .accessibilityLabel("End navigation")
+                // FORK PATCH: `Exit navigation`, not upstream's `End navigation`. This label has no
+                // `bundle:` argument, so it resolves against `Bundle.main` — the HOST app's catalog,
+                // never this package's. Upstream's wording is in no host catalog we ship, so it fell
+                // back to the English key in all seven locales; `Exit navigation` is already there,
+                // translated, and is what the host's own exit control says.
+                .accessibilityLabel("Exit navigation")
             } else {
                 Rectangle()
                     .frame(width: 20, height: 10)
