@@ -110,6 +110,11 @@ public protocol FerrostarCoreDelegate: AnyObject {
     private var lastRecalculationLocation: UserLocation?
     private var recalculationTask: Task<Void, Never>?
     private var queuedUtteranceIDs: Set<UUID> = Set()
+    /// FORK ADDITION: the number of location updates computed, and the number
+    /// whose state update block has run. They differ exactly while a location update's block waits.
+    /// A count, not a time: a fix comes back through the FFI up to a fraction of a microsecond earlier.
+    private var computedLocationUpdates = 0
+    private var storedLocationUpdates = 0
 
     public init(
         routeProvider: RouteProvider,
@@ -406,6 +411,56 @@ public protocol FerrostarCoreDelegate: AnyObject {
         update(newState, location: lastLocation)
     }
 
+    /// FORK ADDITION: advances `count` steps in ONE state update,
+    /// so at most the last step's spoken instruction is announced.
+    /// When `announce` is `false`, that instruction is marked as played without speaking it.
+    ///
+    /// The core's state is written at once, so a location update handled before the state update block
+    /// builds on the advanced state and does not overwrite the advance.
+    ///
+    /// Call it on the main thread, as ``advanceToNextStep()`` is.
+    public func advanceSteps(_ count: Int, announce: Bool) {
+        guard count > 0, let session = navigationSession, var advanced = coreNavState, let lastLocation
+        else {
+            return
+        }
+
+        for _ in 0 ..< count {
+            advanced = session.advanceToNextStep(state: advanced)
+        }
+
+        if !announce,
+           case let .navigating(
+               currentStepGeometryIndex: _,
+               userLocation: _,
+               snappedUserLocation: _,
+               remainingSteps: _,
+               remainingWaypoints: _,
+               progress: _,
+               summary: _,
+               deviation: _,
+               visualInstruction: _,
+               spokenInstruction: spokenInstruction?,
+               annotationJson: _
+           ) = advanced.tripState
+        {
+            // The state update block queues only an utterance ID it has not seen.
+            queuedUtteranceIDs.insert(spokenInstruction.utteranceId)
+        }
+
+        coreNavState = advanced
+        update(advanced, location: lastLocation)
+    }
+
+    /// FORK ADDITION: `true` when a location update was computed
+    /// and its state update block has not run yet.
+    ///
+    /// A step advance is not a location update, so it never makes this `true`.
+    /// Read it on the main thread.
+    public var hasPendingUpdate: Bool {
+        computedLocationUpdates != storedLocationUpdates
+    }
+
     // TODO: Ability to pause without totally stopping and clearing state
 
     /// Stops navigation and stops requesting location updates (to save battery).
@@ -424,7 +479,11 @@ public protocol FerrostarCoreDelegate: AnyObject {
     ///
     /// You should call this rather than setting properties directly
     private func update(_ state: NavState, location: UserLocation) {
+        // FORK ADDITION: the location updates computed up to this call. The main queue runs blocks in order,
+        // so when this block runs, every location update counted here has stored its state.
+        let locationUpdates = computedLocationUpdates
         DispatchQueue.main.async {
+            self.storedLocationUpdates = locationUpdates
             self.coreNavState = state
             self.state?.tripState = state.tripState
 
@@ -545,6 +604,8 @@ extension FerrostarCore: LocationManagingDelegate {
         }
 
         lastLocation = location
+        // FORK ADDITION: see `hasPendingUpdate`.
+        computedLocationUpdates += 1
 
         update(newState, location: location)
     }
