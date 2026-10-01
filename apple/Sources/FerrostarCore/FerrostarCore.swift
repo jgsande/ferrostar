@@ -5,7 +5,9 @@ import Foundation
 enum FerrostarCoreError: Error, Equatable {
     /// The user has disabled location services for this app.
     case locationServicesDisabled
-    case userLocationUnknown
+    /// The route has no geometry, so there is nothing to navigate
+    /// and no origin to fall back to when the user location is unknown.
+    case emptyRouteGeometry
     /// The route request from the route adapter has an invalid URL.
     ///
     /// This should never be encountered by end users of the library, and indicates a programming error
@@ -102,6 +104,10 @@ public protocol FerrostarCoreDelegate: AnyObject {
 
     private let sessionBuilder: FerrostarSessionBuilder
     private var navigationSession: NavigationSession?
+    /// State updates are delivered asynchronously on the main queue.
+    /// This token prevents an update or reroute result from an earlier session
+    /// from reviving navigation after that session has stopped.
+    private var navigationSessionID = UUID()
 
     private var routeRequestInFlight = false
     private var lastAutomaticRecalculation: Date?
@@ -331,23 +337,23 @@ public protocol FerrostarCoreDelegate: AnyObject {
     /// triggering a recalculation.
     /// If this parameter is `nil`, the last location will be obtained from the configured location provider
     /// automatically.
-    /// If no location is available, this method will throw an exception.
+    /// If no location is available, the session starts from the first coordinate of the route
+    /// rather than waiting for a fix.
     ///   - config: Override the configuration for the navigation session. This was provided on init.
     public func startNavigation(
         route: Route,
         userLocation: UserLocation? = nil,
         config: SwiftNavigationControllerConfig? = nil
     ) throws {
-        // This is technically possible, so we need to check and throw, but
-        // it should be rather difficult to get a location fix, get a route,
-        // and then somehow this property go nil again.
-        guard let location = userLocation ?? locationProvider.lastLocation else {
-            throw FerrostarCoreError.userLocationUnknown
+        guard let location = userLocation ?? locationProvider.lastLocation ?? route.geometry.first.map({
+            UserLocation(coordinates: $0, horizontalAccuracy: 0, courseOverGround: nil, timestamp: Date(), speed: nil)
+        }) else {
+            throw FerrostarCoreError.emptyRouteGeometry
         }
-        // TODO: We should be able to circumvent this and simply start updating, wait and start nav.
 
         // Create the navigation session.
         let navigationSession = sessionBuilder.build(for: route, with: config?.ffiValue)
+        navigationSessionID = UUID()
         self.navigationSession = navigationSession
 
         locationProvider.startUpdating()
@@ -361,9 +367,7 @@ public protocol FerrostarCoreDelegate: AnyObject {
             routeGeometry: route.geometry
         )
 
-        DispatchQueue.main.async {
-            self.update(navState, location: location)
-        }
+        update(navState, location: location)
     }
 
     /// Resumes a previously started navigation session from the last known state.
@@ -371,19 +375,20 @@ public protocol FerrostarCoreDelegate: AnyObject {
     /// **Important! This feature is experimental and may exhibit unexpected behavior. Please
     /// report any issues you encounter to help us improve it.**
     ///
-    /// - Parameter userLocation: The user's current location.
+    /// - Parameter userLocation: The user's current location. If this parameter is `nil`, the last location will be
+    /// obtained from the configured location provider automatically. If no location is available, the session
+    /// resumes from the first coordinate of the cached route rather than waiting for a fix.
     public func resumeNavigation(
         userLocation: UserLocation? = nil
     ) throws {
-        // This is technically possible, so we need to check and throw, but
-        // it should be rather difficult to get a location fix, get a route,
-        // and then somehow this property go nil again.
-        guard let location = userLocation ?? locationProvider.lastLocation else {
-            throw FerrostarCoreError.userLocationUnknown
-        }
-        // TODO: We should be able to circumvent this and simply start updating, wait and start nav.
-
         let (navigationSession, route, navState) = try sessionBuilder.buildResumedSession()
+        guard let location = userLocation ?? locationProvider.lastLocation ?? route.geometry.first.map({
+            UserLocation(coordinates: $0, horizontalAccuracy: 0, courseOverGround: nil, timestamp: Date(), speed: nil)
+        }) else {
+            throw FerrostarCoreError.emptyRouteGeometry
+        }
+
+        navigationSessionID = UUID()
         self.navigationSession = navigationSession
 
         locationProvider.startUpdating()
@@ -396,9 +401,7 @@ public protocol FerrostarCoreDelegate: AnyObject {
             routeGeometry: route.geometry
         )
 
-        DispatchQueue.main.async {
-            self.update(navState, location: location)
-        }
+        update(navState, location: location)
     }
 
     public func advanceToNextStep() {
@@ -465,13 +468,18 @@ public protocol FerrostarCoreDelegate: AnyObject {
 
     /// Stops navigation and stops requesting location updates (to save battery).
     public func stopNavigation() {
+        navigationSessionID = UUID()
         navigationSession = nil
+        recalculationTask?.cancel()
+        recalculationTask = nil
         route = nil
         state = nil
         queuedUtteranceIDs.removeAll()
         locationProvider.stopUpdating()
         spokenInstructionObserver.stopAndClearQueue()
-        widgetProvider?.terminate()
+        DispatchQueue.main.async {
+            self.widgetProvider?.terminate()
+        }
         lastRecalculationLocation = nil
     }
 
@@ -482,8 +490,13 @@ public protocol FerrostarCoreDelegate: AnyObject {
         // FORK ADDITION: the location updates computed up to this call. The main queue runs blocks in order,
         // so when this block runs, every location update counted here has stored its state.
         let locationUpdates = computedLocationUpdates
+        let sessionID = navigationSessionID
         DispatchQueue.main.async {
             self.storedLocationUpdates = locationUpdates
+            guard sessionID == self.navigationSessionID else {
+                return
+            }
+
             self.coreNavState = state
             self.state?.tripState = state.tripState
 
@@ -538,6 +551,15 @@ public protocol FerrostarCoreDelegate: AnyObject {
                                     initialLocation: location,
                                     waypoints: waypoints
                                 )
+                                guard !Task.isCancelled,
+                                      sessionID == self.navigationSessionID
+                                else {
+                                    return
+                                }
+
+                                // Accepting a reroute replaces the session and skips the cleanup below.
+                                self.lastAutomaticRecalculation = Date()
+
                                 if let delegate = self.delegate {
                                     delegate.core(self, loadedAlternateRoutes: routes)
                                 } else if let route = routes.first {
@@ -550,6 +572,10 @@ public protocol FerrostarCoreDelegate: AnyObject {
                             }
 
                             await MainActor.run {
+                                guard sessionID == self.navigationSessionID else {
+                                    return
+                                }
+
                                 self.lastAutomaticRecalculation = Date()
                                 self.state?.isCalculatingNewRoute = false
                             }

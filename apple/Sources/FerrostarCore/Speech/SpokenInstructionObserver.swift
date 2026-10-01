@@ -4,9 +4,6 @@ import FerrostarCoreFFI
 import Foundation
 
 /// An Spoken instruction provider that triggers speech synthesis in response to navigation events.
-///
-/// Automatically handles audio session management,
-/// including ducking volume from other apps when appropriate.
 public class SpokenInstructionObserver {
     @Published public private(set) var isMuted: Bool
 
@@ -34,7 +31,8 @@ public class SpokenInstructionObserver {
     ///
     /// - Parameters:
     ///   - synthesizer: The speech synthesizer.
-    ///   - isMuted: Whether the speech synthesizer is currently muted. Assume false if unknown.
+    ///   - isMuted: Whether the speech synthesizer is currently muted. (Normally this will be false,
+    ///     unless you're providing your own "hot" synth.)
     ///   - managesAudioSession: Whether this observer owns the `AVAudioSession` lifecycle. Pass `false`
     /// to take ownership in the host (see the property docs above).
     ///   - prefersPlainText: Whether to speak an instruction's plain text in preference to its SSML.
@@ -77,7 +75,9 @@ public class SpokenInstructionObserver {
             }
 
             self.synthesizer.speak(utterance)
-            scheduleAudioFocusRelease()
+            if managesAudioSession {
+                scheduleAudioFocusRelease()
+            }
         }
     }
 
