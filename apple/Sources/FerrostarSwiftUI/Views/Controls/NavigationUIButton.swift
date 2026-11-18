@@ -7,10 +7,10 @@ public struct NavigationUIButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding()
+            .frame(minWidth: 52, minHeight: 52)
             .background(Color(.systemBackground))
             .foregroundStyle(.primary)
             .clipShape(Capsule())
-            .frame(minWidth: 52, minHeight: 52)
             .shadow(radius: 8)
     }
 }
