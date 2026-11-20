@@ -57,6 +57,8 @@ import org.maplibre.compose.util.MaplibreComposable
  * @param mapOptions MapLibre map options to use as the base configuration. The wrapper replaces
  *   `mapOptions.ornamentOptions.padding` with the computed padding needed to keep ornaments clear
  *   of navigation overlays.
+ * @param zoomRange The zoom levels the map's camera may take, as MapLibre Compose's `MaplibreMap`
+ *   takes them.
  */
 @Composable
 fun DynamicallyOrientingNavigationView(
@@ -78,6 +80,7 @@ fun DynamicallyOrientingNavigationView(
     onMapClick: NavigationMapClickHandler = { _, _ -> NavigationMapClickResult.Pass },
     onMapLongClick: NavigationMapClickHandler = { _, _ -> NavigationMapClickResult.Pass },
     mapOptions: MapOptions = defaultNavigationMapOptions(),
+    zoomRange: ClosedRange<Float> = 0f..20f,
     mapContent: @Composable @MaplibreComposable ((NavigationUiState) -> Unit)? = null,
 ) {
   val configuration = LocalConfiguration.current
@@ -114,6 +117,7 @@ fun DynamicallyOrientingNavigationView(
         navigationMapState = navigationMapState,
         uiState = uiState,
         mapOptions = effectiveMapOptions,
+        zoomRange = zoomRange,
         navigationCameraOptions = effectiveNavigationCameraOptions,
         routeOverlayBuilder = routeOverlayBuilder,
         locationPuckStyle = locationPuckStyle,

@@ -45,6 +45,8 @@ import uniffi.ferrostar.GeographicCoordinate
  * @param uiState The navigation UI state.
  * @param mapOptions The official MapLibre Compose options for ornaments, gestures, and map
  *   behavior.
+ * @param zoomRange The zoom levels the map's camera may take, as MapLibre Compose's `MaplibreMap`
+ *   takes them.
  * @param routeOverlayBuilder The route overlay builder to use for rendering the route line.
  * @param navigationCameraOptions The camera templates applied when following the user in browsing
  *   and navigation modes.
@@ -64,6 +66,7 @@ fun NavigationMapView(
     navigationMapState: NavigationMapState = rememberNavigationMapState(),
     uiState: NavigationUiState,
     mapOptions: MapOptions,
+    zoomRange: ClosedRange<Float> = 0f..20f,
     routeOverlayBuilder: RouteOverlayBuilder? = RouteOverlayBuilder.Default(),
     navigationCameraOptions: NavigationCameraOptions = navigationCameraOptions(),
     locationPuckStyle: NavigationMapPuckStyle = NavigationMapPuckStyle(),
@@ -108,6 +111,7 @@ fun NavigationMapView(
       modifier = Modifier.fillMaxSize(),
       baseStyle = baseStyle,
       cameraState = cameraState,
+      zoomRange = zoomRange,
       onMapClick = { position, screenPosition ->
         onMapClick(position.toGeographicCoordinate(), screenPosition).toComposeClickResult()
       },
