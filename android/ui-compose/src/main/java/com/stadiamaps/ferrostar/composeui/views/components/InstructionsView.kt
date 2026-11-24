@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,9 @@ import uniffi.ferrostar.VisualInstructionContent
  * This banner view includes the default iconography from Mapbox, attempts to use the device's
  * locale for formatting distances and determining flow order (this can be overridden by passing a
  * customized formatter), and uses the material theme for color selection.
+ *
+ * @param onExpandedChange Called when the user expands or collapses the list of upcoming steps, with
+ *   the new state, so the caller can lay out other content around the banner.
  */
 @Composable
 fun InstructionsView(
@@ -60,11 +64,19 @@ fun InstructionsView(
     theme: InstructionRowTheme = DefaultInstructionRowTheme,
     remainingSteps: List<RouteStep>? = null,
     initExpanded: Boolean = false,
+    onExpandedChange: (Boolean) -> Unit = {},
     contentBuilder: @Composable (VisualInstruction) -> Unit = {
       ManeuverImage(it.primaryContent, tint = theme.iconTintColor)
     },
 ) {
   var isExpanded by remember { mutableStateOf(initExpanded) }
+  val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
+  fun setExpanded(expanded: Boolean) {
+    if (isExpanded != expanded) {
+      isExpanded = expanded
+      currentOnExpandedChange(expanded)
+    }
+  }
   val screenHeight = LocalConfiguration.current.screenHeightDp.dp
   val remainingSteps: List<RouteStep> = remainingSteps?.drop(1) ?: emptyList()
 
@@ -75,7 +87,7 @@ fun InstructionsView(
               .heightIn(max = screenHeight)
               .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessHigh))
               .background(theme.backgroundColor, RoundedCornerShape(10.dp))
-              .clickable { isExpanded = true }
+              .clickable { setExpanded(true) }
   ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -148,7 +160,7 @@ fun InstructionsView(
                 .align(Alignment.BottomCenter),
         iconTintColor = theme.iconTintColor,
     ) {
-      isExpanded = !isExpanded
+      setExpanded(!isExpanded)
     }
   }
 }
